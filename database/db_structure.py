@@ -94,25 +94,23 @@ class Users(Base):
     payments = relationship("Payments", back_populates="user")
 
     experience = relationship("Experience", back_populates="user")
-    reports = relationship("Reports", back_populates="user")
     client_apps = relationship("ClientApps", back_populates="user")
 
     # payments = relationship("Payments", back_populates="user")
-    # reports = relationship("ClientReports", back_populates="user")
 
 
 class Reports(Base):
-    user_ID: int = Column(Integer, ForeignKey('users.id'), nullable=False)
-    client_app_ID: int = Column(Integer, ForeignKey('client_apps.id'), nullable=False)
+    account_ID: int = Column(Integer, ForeignKey('accounts.id'), nullable=False)
+    # client_app_ID: int = Column(Integer, ForeignKey('client_apps.id'), nullable=False)
     bot_interaction_ID: int = Column(Integer, ForeignKey('bot_interaction.id'), nullable=False)
-    feature: str = Column(String(20), nullable=False)
+    feature: str = Column(String(50), nullable=False)
     value: str = Column(Text, nullable=False)
 
     # unique index is not need as 2 the same reports impossible if client didn't send twice
     # TODO: (out of the db module) make client restriction: 1 report per 1 minute (anti DOS attack)
 
-    user = relationship("Users", back_populates="reports")
-    client_app = relationship("ClientApps", back_populates="reports")
+    account = relationship("Accounts", back_populates="reports")
+    # client_app = relationship("ClientApps", back_populates="reports")
     bot_interaction = relationship("BotInteraction", back_populates="report")
 
 
@@ -142,9 +140,9 @@ class AccountInfoHist(Base):
 
 class Accounts(Base):
     user_ID: int = Column(Integer, ForeignKey('users.id'), nullable=False)
-    name_app: str = Column(Enum('message', 'vk', 'tg', 'inst'), nullable=False)  # can be scalable
+    name_app: str = Column(Enum('message', 'vk', 'tg', 'inst', 'tinder', 'None'), nullable=False)  # can be scalable
     in_app_id: str = Column(String(50), nullable=False)  # account id lengths: tinder 24 (str); tg 9 (int)
-    is_bot: bool = Column(Boolean, nullable=False)
+    is_bot: bool = Column(Boolean, default=False, nullable=False)
 
     __table_args__ = (
         # composite unique key as 'in_app_id' can be the same in 2 apps and 2
@@ -154,6 +152,8 @@ class Accounts(Base):
     user = relationship("Users", back_populates="accounts")
     client_apps = relationship("ClientApps", back_populates="account")
     bot_interactions = relationship("BotInteraction", back_populates="account")
+    reports = relationship("Reports", back_populates="account")
+
 
     account_info_last = relationship("AccountInfoLast", back_populates="account")
     account_info_hist = relationship("AccountInfoHist", back_populates="account")
@@ -161,13 +161,17 @@ class Accounts(Base):
     tin_available_param_hist = relationship("TinAvailableParamHist", back_populates="account")
 
     message_templates = relationship("MessageTemplates", back_populates="account")
-    sent_messages = relationship("SentMessages", back_populates="from_account", foreign_keys='SentMessages.from_account_ID')
-    received_messages = relationship("SentMessages", back_populates="to_account", foreign_keys='SentMessages.to_account_ID')
+    sent_messages = relationship("SentMessages", back_populates="from_account",
+                                 foreign_keys='SentMessages.from_account_ID')
+    received_messages = relationship("SentMessages", back_populates="to_account",
+                                     foreign_keys='SentMessages.to_account_ID')
     relations_sent = relationship("Relations", back_populates="from_account", foreign_keys='Relations.from_account_ID')
     relations_received = relationship("Relations", back_populates="to_account", foreign_keys='Relations.to_account_ID')
 
-    sent_notifications = relationship("Notifications", back_populates="sender_account", foreign_keys='Notifications.sender_account_ID')
-    received_notifications = relationship("Notifications", back_populates="to_account", foreign_keys='Notifications.to_account_ID')
+    sent_notifications = relationship("Notifications", back_populates="sender_account",
+                                      foreign_keys='Notifications.sender_account_ID')
+    received_notifications = relationship("Notifications", back_populates="to_account",
+                                          foreign_keys='Notifications.to_account_ID')
 
 
 class BotInteraction(Base):
@@ -195,6 +199,7 @@ class Notifications(Base):
 
 class MessageTemplates(Base):
     account_ID: int = Column(Integer, ForeignKey('accounts.id'), nullable=False)
+    # TODO: add two columns 'order', 'template_name'; add opportunity edit templates
     template: str = Column(String(700), nullable=False)
 
     __table_args__ = (
@@ -203,6 +208,9 @@ class MessageTemplates(Base):
 
     account = relationship("Accounts", back_populates="message_templates")
     sent_messages = relationship("SentMessages", back_populates="template")
+    client_apps = relationship("ClientApps", back_populates="message_template")
+
+
 
 class SentMessages(Base):
     # client_app_ID has <default=None/0> as can be done out of any client app
@@ -290,6 +298,7 @@ class TinAvailableParams(Base):
 class ClientApps(Base):
     user_ID: int = Column(Integer, ForeignKey('users.id'), nullable=False)
     account_ID: int = Column(Integer, ForeignKey('accounts.id'), default=0)  # 0 - if we didn't receive token
+    message_template_ID: int = Column(Integer, ForeignKey('message_templates.id'), default='None')
     # insert_time is insert_time of ..._last table (look into a trigger)
 
     # without 'UniqueConstraint' as one account can have many apps
@@ -297,10 +306,11 @@ class ClientApps(Base):
     user = relationship("Users", back_populates="client_apps")
     account = relationship("Accounts", back_populates="client_apps")
     payments = relationship("Payments", back_populates="client_app")
-    reports = relationship("Reports", back_populates="client_app")
+    # reports = relationship("Reports", back_populates="client_app")
 
     filter_last = relationship("FilterLast", back_populates="client_app")
     filter_hist = relationship("FilterHist", back_populates="client_app")
+    message_template = relationship("MessageTemplates", back_populates="client_apps")
 
     messages = relationship("SentMessages", back_populates="client_app")
     relations = relationship("Relations", back_populates="client_app")
@@ -433,7 +443,6 @@ with engine.connect() as connection:
         columns = {column.name for column in table.columns} - {'id'}
         # execute trigger
         connection.execute(trigger_to_hist_table(table_name_last=name, column_names=columns))
-
 
 # if __name__ == '__main__':
 #     Session = sessionmaker()

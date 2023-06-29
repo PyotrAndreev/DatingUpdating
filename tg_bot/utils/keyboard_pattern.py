@@ -4,23 +4,23 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 from tg_bot.data_structure import bot
 
 
-def create_inline_keyboard(menu: list[None, list[InlineKeyboardButton]] = [],
-                           main_menu: bool = True, report: bool = True) -> InlineKeyboardMarkup:
+def create_inline_keyboard(menu: list[None | list[InlineKeyboardButton]] = [],
+                           main_menu: bool = False, report: bool = False) -> InlineKeyboardMarkup:
     """menu: list of menu rows"""
     last_row = []
 
     if report:
-        report: InlineKeyboardButton = InlineKeyboardButton(text='Сообщить о / предложить', callback_data='report_type')
+        report: InlineKeyboardButton = InlineKeyboardButton(text='contact us', callback_data='report_type')
         last_row.append(report)
 
     if main_menu:
-        main_menu: InlineKeyboardButton = InlineKeyboardButton(text='Главное меню', callback_data='start')
+        main_menu: InlineKeyboardButton = InlineKeyboardButton(text='main menu', callback_data='start')
         last_row.append(main_menu)
 
     menu.append(last_row)
     return InlineKeyboardMarkup(inline_keyboard=menu)
 
-
+### example: ###
 def keyboard() -> InlineKeyboardMarkup:
     b1 = InlineKeyboardButton(text='Отчество не нужно', callback_data='speaker_tg_username')
     menu = [[b1]]

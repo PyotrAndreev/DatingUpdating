@@ -34,7 +34,6 @@ class CustomMiddleware(BaseMiddleware):
                 # create a new account into DB and have a copy on the local machine, add workflow for the user
                 users[tg_user.id] = TgData(DBUser=await DBUser.create(session=session, tg_user=tg_user),
                                            UserWorkflow=UserWorkflow(tg_user.id))
-
             tg_user_to_db: set = {"first_name", "last_name", "username", "language_code", "is_premium"}
             await users[tg_user.id].DBUser \
                 .update_account_last_info(fresh_data={name: str(getattr(tg_user, name)) for name in tg_user_to_db})
@@ -46,11 +45,6 @@ class CustomMiddleware(BaseMiddleware):
                 # when del mes in 'del_and_log_user_action', after del the mes in 'message_delete.py' (sometimes)
                 data['session'] = session  # add session to data to have ability use it in any function under handler
                 await handler(event, data)
-
-
-class MyCallback(CallbackData, prefix="my"):
-    cb_data: str
-    event_ID: int
 
 
 class MyCB(CallbackData, prefix="my"):
@@ -70,6 +64,10 @@ class MySG(StatesGroup):
     phone = State()
     sms_code = State()
     tinder_token = State()
+
+    save_report = State()
+
+    message_template = State()
 
 
 menu_commands: list = [

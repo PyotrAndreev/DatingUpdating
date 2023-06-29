@@ -57,15 +57,15 @@ async def db_add_all(session: AsyncSession, table: Base = None, fresh_data: list
     return orm_objs[0] if len(orm_objs) == 1 else orm_objs
 
 
-async def db_update(session: AsyncSession, table: Base, fresh_values: dict, **filter_by) -> None:
+async def db_update(session: AsyncSession, table: Base, fresh_data: dict, **filter_by) -> None:
     """Update rows in the database table with new values."""
     # TODO: user merge here?
-    stmt: Update = update(table).filter_by(**filter_by).values(**fresh_values)  # .prefix_with('IGNORE')
+    stmt: Update = update(table).filter_by(**filter_by).values(**fresh_data)  # .prefix_with('IGNORE')
     await session.execute(stmt)
     await session.commit()
 
 
-async def db_select(session: AsyncSession, table: Base, filters: list = [], order_by: list = [], **filter_by) \
+async def db_select(session: AsyncSession, table: Base, filters: list = [], order_by: list = [], **filter_by: object) \
         -> Union[list[Base, None], Base]:
     """Retrieve rows from the database table based on filters and conditions."""
     stmt: Select = select(table).filter(*filters).filter_by(**filter_by).order_by(*order_by)
@@ -91,11 +91,11 @@ async def db_select_last_info(session: AsyncSession, table: Base, **fk_id)\
 
 
 # All functions below are derivatives from upper functions
-
 async def db_merge_last_info(session: AsyncSession,
                              table: [AccountInfoLast, UserInfoLast],
-                             orm_objs: list[dict[str: [AccountInfoLast, UserInfoLast]], None],
-                             fresh_data: dict[str: [str, int, float]], **fk_id) -> None:
+                             orm_objs: dict[str: AccountInfoLast | UserInfoLast] | None,
+                             fresh_data: dict[str: str | int | float], **fk_id)\
+        -> dict[str: AccountInfoLast | UserInfoLast]:
     # update all previous data
     for feature, obj in orm_objs.items():
         # can be optimized:
@@ -105,9 +105,9 @@ async def db_merge_last_info(session: AsyncSession,
             #  [parameters: (1, 84, 'expectation', 'Хочу понять уровень требований')]
             #  Is works?: Поторно - нет. Но в первый раз я получил сообщение, что зарегистрирован
             #  orm_tg_account: [<database.db_structure.Accounts object at 0x7fd745e925d0>, <database.db_structure.Accounts object at 0x7fd745e92610>]
-
             obj = await session.merge(obj)  # bound object to the session
             obj.value = fresh_data.pop(feature)
+            orm_objs[feature] = obj  # to save the change into orm_objs
     await session.commit()
 
     if fresh_data:  # if something new to add to DB
@@ -123,12 +123,13 @@ async def db_merge_last_info(session: AsyncSession,
             orm_objs[feature] = orm_sample
         await db_add_all(session, orm_objs=new_orm_objects)
 
+    return orm_objs
 
-async def orm_user_and_account(session: AsyncSession, tg_id: [int, str], is_bot: bool)\
+
+async def orm_user_and_accounts(session: AsyncSession, tg_id: [int, str], is_bot: bool)\
         -> dict[str: [Users, Accounts]]:
     # searching the account & user in DB
     if orm_tg_account := await db_select(session, table=Accounts, in_app_id=tg_id):
-        print(f'orm_tg_account: {orm_tg_account}')
         orm_user: Users = await db_select(session, table=Users, id=orm_tg_account.user_ID)
         # TODO: Error: katushkainduktivnosti & Alexandra Tokaeva & zhaksylykov23
         #  : id=orm_tg_account.user_ID): AttributeError: 'list' object has no attribute 'user_ID'
@@ -137,7 +138,13 @@ async def orm_user_and_account(session: AsyncSession, tg_id: [int, str], is_bot:
         orm_user: Users = Users(status=status, system_level=numeric_system_level[status])
         orm_tg_account: Accounts = Accounts(user=orm_user, name_app='tg', in_app_id=tg_id, is_bot=is_bot)
         await db_add_all(session, orm_objs=[orm_tg_account])  # not separately add 'orm_user' as it in 'orm_tg_account'
-    return {'user': orm_user, 'account': orm_tg_account}
+
+    if not (orm_tinder_account := await db_select(session, table=Accounts, user_ID=orm_user.id, name_app='tinder')):
+        orm_tinder_account: Accounts = Accounts(user=orm_user, name_app='tinder', in_app_id='None')
+        await db_add_all(session, orm_objs=[orm_tinder_account])
+    # TODO: ? user can have many tinder accounts: how I can define a special tinder account, that client wants receive ?
+
+    return {'user': orm_user, 'tg_account': orm_tg_account, 'tinder_account': orm_tinder_account}
 
   # File "/home/petr/PycharmProjects/home/petr/PycharmProjects/RegistrationBot/utils/data_structure.py", line 36, in create
   #   orm: dict[str: [Users, Accounts]] = await orm_user_and_account(session, tg_id=tg_user.id, is_bot=tg_user.is_bot)

@@ -8,7 +8,11 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from tg_bot.data_structure import bot
 from tg_bot.init import CustomMiddleware, menu_commands
 
-# from stages.start_menu import router as start_menu
+from tg_bot.stages.start_menu import router as start_menu
+from tg_bot.stages.report import router as report
+from tg_bot.stages.refresh_token.order_routers import refresh_token
+from tg_bot.stages.set_filters.set_filters import router as set_filters
+from tg_bot.stages.client_apps.order_routers import client_apps
 from tg_bot.stages.message_delete import router as del_user_message
 
 
@@ -28,8 +32,10 @@ async def main():
                                               pool_recycle=30 * 60)  # recycle connections after 30 minutes
                                               # request_timeout = 60
     # the router order refresh_token is strongly important
-    # dp.include_routers(start_menu, report)
-    # dp.include_routers(administration, *event_registration)
+    dp.include_routers(start_menu, report)
+    dp.include_routers(*refresh_token)
+    dp.include_router(set_filters)
+    dp.include_router(*client_apps)
 
     dp.include_router(del_user_message)
 

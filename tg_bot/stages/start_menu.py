@@ -3,45 +3,39 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, User
 
-from tg_bot.utils.bot_workflow import create_inline_keyboard
-from tg_bot.utils.data_structure import users, bot
+from tg_bot.data_structure import DBUser
+from tg_bot.data_structure import users, bot
+from tg_bot.utils.keyboard_pattern import create_inline_keyboard
 
 router = Router()
 
 
-# def is_admin(user_id: int) -> bool:
-#     admin_flag = False
-#     if user_id in [266152771, 881321294]:  # TODO: is_admin - receive from DB.  Make root user.
-#         admin_flag = True
-#     return admin_flag
-
-
 def keyboard(user_id: int) -> InlineKeyboardMarkup:
-    print(f'users: {users}')
-    print(f'user_id: {user_id}')
-    if 'refresh_token' not in users[user_id].TgUser.orm_tg_account_info:
+    is_report = True
+    user: DBUser = users[user_id].DBUser
+    print(f"user.orm_tinder_account_info.get('refresh_token'): {user.orm_tinder_account_info.get('refresh_token')}")
+    if not user.orm_tinder_account_info.get('refresh_token'):
         b1 = InlineKeyboardButton(text='connect with your Tinder account', callback_data='phone_ask')
         menu = [[b1]]
     else:
-        b1 = InlineKeyboardButton(text='set message template', callback_data='')
-        b2 = InlineKeyboardButton(text='set filters', callback_data='')
-        b3 = InlineKeyboardButton(text='run auto searching', callback_data='')
-        menu = [[b1, b2], [b3]]
+        b1 = InlineKeyboardButton(text='message template', callback_data='message_template')
+        b2 = InlineKeyboardButton(text='filters', callback_data='set_filters')
+        b3 = InlineKeyboardButton(text='auto searching', callback_data='pass')
+        b4 = InlineKeyboardButton(text='statistic', callback_data='pass')
+        menu = [[b1, b2], [b3, b4]]
 
-    # if is_admin(user_id):
-    #     b3 = InlineKeyboardButton(text='admin menu', callback_data='administration')
-    #     menu.append([b3])
+    if user.orm_user.system_level >= 20:  # >= assistant_admin (config.py)
+        is_report = False
+        b4 = InlineKeyboardButton(text='admin', callback_data='administration')
+        menu.append([b4])
 
-    return create_inline_keyboard(menu, report=True)
+    return create_inline_keyboard(menu, report=is_report)
 
 
-def message(first_name: str, user_id: int) -> str:
-    text = f"Hi, <b>{first_name}</b>!\n" \
-           f"Let's boost your Tinder attractiveness." \
-           f"\nYou should have Tinder account for the first."
-
-    # if is_admin(user_id):
-    #     text += "\n\nYour are admin."
+def message(first_name: str) -> str:
+    text = f"Hi, {first_name}!\n" \
+           f"Let's boost your Tinder attractiveness.\n" \
+           f"You should have Tinder account for the first."
     return text
 
 
@@ -49,10 +43,9 @@ def message(first_name: str, user_id: int) -> str:
 async def start(mes: Message) -> None:
     await mes.delete()  # del the '/start' message
     user: User = mes.from_user
-    mes_data = await mes.answer(text=message(user.first_name, user.id),
+    mes_data = await mes.answer(text=message(user.first_name),
                                 parse_mode='HTML',
                                 reply_markup=keyboard(user.id))
-
     users[user.id].UserWorkflow.edit_message = mes_data.message_id
 
 
@@ -65,12 +58,12 @@ async def start(callback: CallbackQuery, state: FSMContext) -> None:
     if mes_id := users[user.id].UserWorkflow.edit_message:
         mes_data = await bot.edit_message_text(chat_id=user.id,
                                                message_id=mes_id,
-                                               text=message(user.first_name, user.id),
+                                               text=message(user.first_name),
                                                parse_mode='HTML',
                                                reply_markup=keyboard(user.id))
     else:
         await users[user.id].UserWorkflow.del_keyboard()
-        mes_data = await callback.message.answer(text=message(user.first_name, user.id),
+        mes_data = await callback.message.answer(text=message(user.first_name),
                                                  parse_mode='HTML',
                                                  reply_markup=keyboard(user.id))
 
